@@ -126,11 +126,17 @@ module.exports = function(RED) {
             var closing = false;
             var tout;
             stream.on('message', function(res) {
-                if (res.type === 'tickle') {
+                if (res.type ==='nop') {
+                    self.log('nop');
+                } else if (res.type === 'tickle') {
+                    self.log('tickle');
                     self.handleTickle(res);
                 }
                 else if (res.type === 'push') {
+                    self.log('push');
                     self.pushMsg(res.push);
+                } else {
+                    self.log('other message: ' + res.type);
                 }
             });
             stream.on('connect', function() {
@@ -158,6 +164,7 @@ module.exports = function(RED) {
                 if (tout) { clearTimeout(tout); }
                 closing = true;
                 try {
+                    this.log('node close');
                     this.stream.close();
                 } catch(err) {
                     // Ignore error if not connected
@@ -543,9 +550,11 @@ module.exports = function(RED) {
                 self.error(err);
             });
             config.onConfig('stream_connected', function() {
+                self.log('stream_connected');
                 self.status({fill:'green', shape:'dot', text:'connected'});
             });
             config.onConfig('stream_disconnected', function(err) {
+                self.log('stream_disconnected');
                 self.status({fill:'grey', shape:'ring', text:'disconnected'});
             });
             config.onConfig('stream_error', function(err) {
