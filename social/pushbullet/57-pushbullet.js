@@ -22,6 +22,7 @@ module.exports = function(RED) {
     var when = require('when');
     var nodefn = require('when/node');
     var EventEmitter = require('events').EventEmitter;
+    var watchdog = require('ya-watchdog');
 
     function onError(err, node) {
         if (err && node) {
@@ -125,7 +126,11 @@ module.exports = function(RED) {
             var stream = this.pusher.stream();
             var closing = false;
             var tout;
+            var connectionWatchdog = null;
             stream.on('message', function(res) {
+                if (connectionWatchdog != null) {
+                    connectionWatchdog.kick();
+                }
                 if (res.type ==='nop') {
                     self.log('nop');
                 } else if (res.type === 'tickle') {
@@ -140,6 +145,18 @@ module.exports = function(RED) {
                 }
             });
             stream.on('connect', function() {
+                if (connectionWatchdog == null) {
+                    connectionWatchdog = new watchdog(100000);
+                    connectionWatchdog.on('timeout', function () {
+                        self.warn('Watchdog timeout occured');
+                        if (!closing) {
+                            tout = setTimeout(function() {
+                                stream.connect();
+                            },15000);
+                        }
+                    });
+                    connectionWatchdog.kick();
+                }
                 self.emitter.emit('stream_connected');
             });
             stream.on('close', function() {
@@ -163,6 +180,7 @@ module.exports = function(RED) {
             this.on("close",function() {
                 if (tout) { clearTimeout(tout); }
                 closing = true;
+                connectionWatchdog.dispose();
                 try {
                     this.log('node close');
                     this.stream.close();
